@@ -2,6 +2,13 @@
 
 ## Browser-local Mock Checkout
 
+### Confirmation Detail Enhancement
+
+- [x] Add an itemized summary of the activated browser-demo credit allocation.
+- [x] Show the plan’s included features and operating-support details in the confirmation state.
+- [x] Keep the local-only and no-live-entitlement disclosure adjacent to the summary.
+- [x] Verify the expanded confirmation in the browser for a paid plan.
+
 - [x] Add a clearly labeled local checkout entry point for eligible paid plans.
 - [x] Build a payment-details simulation that neither validates nor transmits card data.
 - [x] Add review and confirmation states that update only the local plan allocation.

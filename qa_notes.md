@@ -66,3 +66,9 @@ Using **Return to workspace** closed the confirmation dialog, routed to Overview
 The Enterprise flow opened with the browser-local dialog labeled **“Prepare Enterprise.”** and rendered the Cancel action. The remaining check is cancellation: it must close the dialog while leaving the current Professional local allocation untouched.
 
 Cancelling the Enterprise checkout closed the dialog and left the plan header, card selection, sidebar allocation, and available balance at **Professional · 10,000 credits**. The mock checkout now has verified payment-preview, review, confirmation, return, and cancellation paths.
+
+## 2026-08-20 — Expanded confirmation detail
+
+The paid-plan mock checkout opened normally after the expanded confirmation update, with its review action available. The next verification step is to complete the local flow and confirm the new credit, included-feature, operating-support, and local-only disclosure sections all render in the final state.
+
+The final Professional confirmation rendered the full activation ledger: activated plan, 10,000 browser-demo credits, monthly and price previews, all included features, Workflow/Review/Reporting/Support details, the fixed local reference and test method, and an explicit local-only/no-live-entitlement disclosure. The modal remains scrollable, keeping the detailed confirmation usable on the current viewport.
