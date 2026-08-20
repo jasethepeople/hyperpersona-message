@@ -55,6 +55,7 @@ type WorkspaceUser = { name: string; email: string; plan: PlanId; credits: numbe
 type ContentKind = "Text" | "Image" | "Video";
 type ToastKind = "info" | "success" | "warning";
 type Toast = { text: string; kind: ToastKind } | null;
+type CheckoutStep = "payment" | "review" | "confirmed";
 
 const PLANS: Record<PlanId, { label: string; price: string; credits: number; description: string; features: string[] }> = {
   free: {
@@ -322,7 +323,12 @@ function Audiences({ segments, setSegments, notify }: WorkspaceProps) { const [n
 
 function Library({ library, setLocation, notify }: WorkspaceProps) { return <>{library.length === 0 ? <section className="library-empty panel"><BookOpen size={30} /><Eyebrow>Local library</Eyebrow><h2>No saved drafts yet.</h2><p>Content made in the studio can be saved here with its type and prompt-aware summary.</p><button className="button button--coral" onClick={() => setLocation("/studio")}>Open content studio <ArrowRight size={16} /></button></section> : <section className="library-grid">{library.map(item => <article className="library-card" key={item.id}><div className="library-card__top"><StatusPill tone={item.type === "Text" ? "green" : "coral"}>{item.type}</StatusPill><button className="icon-button" onClick={() => notify("This local library item can be reviewed, copied, or removed after a production storage system is connected.")}><MoreHorizontal size={18} /></button></div><h2>{item.title}</h2><p>{item.summary}…</p><footer><span>Saved {item.created}</span><ArrowUpRight size={16} /></footer></article>)}</section>}<section className="library-notice"><Database size={16} /><p><b>Storage boundary:</b> these items are kept only for the current browser-local prototype session. A production content library needs protected storage, access control, retention, and audit rules.</p></section></> }
 
-function Plans({ user, changePlan }: WorkspaceProps) {
+function Plans({ user, changePlan, setLocation }: WorkspaceProps) {
+  const [checkoutPlan, setCheckoutPlan] = useState<PlanId | null>(null);
+  const choosePlan = (id: PlanId) => {
+    if (id === "free") { changePlan(id); return; }
+    setCheckoutPlan(id);
+  };
   return <>
     <section className="billing-hero">
       <div><Eyebrow>Current workspace allocation</Eyebrow><h2>{PLANS[user.plan].label} <span>·</span> {user.credits.toLocaleString()} credits</h2><p>Changing a plan here updates only this browser-local demonstration. It never opens a checkout, charges a card, or commits a subscription.</p></div>
@@ -351,7 +357,7 @@ function Plans({ user, changePlan }: WorkspaceProps) {
             <div><span>Reporting</span><b>{detail.reporting}</b></div>
             <div><span>Support</span><b>{detail.onboarding}</b></div>
           </div>
-          <button className={isSelected ? "button button--quiet button--full" : id === "professional" ? "button button--coral button--full" : "button button--paper button--full"} disabled={isSelected} onClick={() => changePlan(id)}>{isSelected ? "Current local plan" : `Select ${plan.label}`}<ArrowRight size={15} /></button>
+          <button className={isSelected ? "button button--quiet button--full" : id === "professional" ? "button button--coral button--full" : "button button--paper button--full"} disabled={isSelected} onClick={() => choosePlan(id)}>{isSelected ? "Current local plan" : id === "free" ? "Switch to Free" : "Continue to mock checkout"}<ArrowRight size={15} /></button>
         </article>;
       })}
     </section>
@@ -362,8 +368,39 @@ function Plans({ user, changePlan }: WorkspaceProps) {
         {PLAN_COMPARISON.map(row => <div className="comparison-table__row" key={row.label}><span>{row.label}</span>{row.values.map((value, index) => <span key={`${row.label}-${index}`}><Check size={13} />{value}</span>)}</div>)}
       </div>
     </section>
-    <section className="payment-boundary panel"><div><ShieldCheck size={21} /><div><Eyebrow>Payment boundary</Eyebrow><h2>Billing is not configured.</h2><p>There is no connected payment processor in this front-end prototype. Do not treat plan selections, credit totals, or invoices as commercial records.</p></div></div><button className="button button--ink" onClick={() => window.alert("A production implementation should open a secure hosted checkout after a Stripe or other payment provider is configured server-side.")}>What production needs <ArrowRight size={16} /></button></section>
+    <section className="payment-boundary panel"><div><ShieldCheck size={21} /><div><Eyebrow>Payment boundary</Eyebrow><h2>Billing is not configured.</h2><p>The checkout preview uses only fixed demonstration information. It does not request, validate, retain, or transmit card data; plan activation updates this browser-local workspace only.</p></div></div><button className="button button--ink" onClick={() => setCheckoutPlan("professional")}>Preview mock checkout <ArrowRight size={16} /></button></section>
+    {checkoutPlan && <MockCheckout planId={checkoutPlan} user={user} onClose={() => setCheckoutPlan(null)} onComplete={() => changePlan(checkoutPlan)} onReturn={() => setLocation("/overview")} />}
   </>;
+}
+
+function MockCheckout({ planId, user, onClose, onComplete, onReturn }: { planId: PlanId; user: WorkspaceUser; onClose: () => void; onComplete: () => void; onReturn: () => void }) {
+  const [step, setStep] = useState<CheckoutStep>("payment");
+  const [method, setMethod] = useState<"card" | "invoice">("card");
+  const plan = PLANS[planId];
+  const methodLabel = method === "card" ? "Test card •••• 4242" : "Invoice preview";
+  const activate = () => { onComplete(); setStep("confirmed"); };
+  return <div className="checkout-overlay" role="presentation">
+    <section className="checkout-dialog" role="dialog" aria-modal="true" aria-labelledby="checkout-title">
+      <header className="checkout-dialog__header">
+        <div><Eyebrow>Browser-local checkout preview</Eyebrow><h2 id="checkout-title">{step === "confirmed" ? "Local plan updated." : `Prepare ${plan.label}.`}</h2></div>
+        {step !== "confirmed" && <button className="icon-button" onClick={onClose} aria-label="Close mock checkout"><X size={18} /></button>}
+      </header>
+      {step !== "confirmed" && <div className="checkout-steps" aria-label="Checkout progress"><span className={step === "payment" ? "active" : "complete"}>1 <b>Payment preview</b></span><span className={step === "review" ? "active" : ""}>2 <b>Review</b></span><span>3 <b>Confirmation</b></span></div>}
+      {step === "payment" && <div className="checkout-body">
+        <div className="checkout-notice"><LockKeyhole size={16} /><p><b>No payment details are collected.</b> This UI uses fixed test methods only and sends nothing to a payment processor.</p></div>
+        <div className="checkout-summary"><span>Selected local plan</span><strong>{plan.label}</strong><b>{plan.price}<small>/mo</small></b><p>{plan.credits.toLocaleString()} browser-demo credits after confirmation</p></div>
+        <div className="checkout-methods"><span className="checkout-label">Choose a test payment preview</span><button className={`checkout-method ${method === "card" ? "selected" : ""}`} onClick={() => setMethod("card")}><CreditCard size={18} /><span><b>Test card •••• 4242</b><small>Fixed non-chargeable demo method</small></span><Check size={16} /></button><button className={`checkout-method ${method === "invoice" ? "selected" : ""}`} onClick={() => setMethod("invoice")}><FilePenLine size={18} /><span><b>Invoice preview</b><small>Fixed demonstration invoice flow</small></span><Check size={16} /></button></div>
+        <div className="checkout-account"><span>Workspace contact</span><b>{user.name}</b><small>{user.email}</small></div>
+        <footer className="checkout-actions"><button className="button button--paper" onClick={onClose}>Cancel</button><button className="button button--coral" onClick={() => setStep("review")}>Review mock order <ArrowRight size={16} /></button></footer>
+      </div>}
+      {step === "review" && <div className="checkout-body">
+        <div className="checkout-review"><Eyebrow>Review local change</Eyebrow><h3>{plan.label} workspace allocation</h3><div><span>Mock payment method</span><b>{methodLabel}</b></div><div><span>Plan price</span><b>{plan.price}/mo</b></div><div><span>Updated local credit balance</span><b>{plan.credits.toLocaleString()} credits</b></div><div><span>Payment processing</span><b>Not connected</b></div></div>
+        <div className="checkout-notice checkout-notice--coral"><Info size={16} /><p><b>Simulation only.</b> Confirming changes the local plan allocation in this browser. It does not charge, create a subscription, or issue an invoice.</p></div>
+        <footer className="checkout-actions"><button className="button button--paper" onClick={() => setStep("payment")}>Back</button><button className="button button--coral" onClick={activate}>Simulate plan activation <ArrowRight size={16} /></button></footer>
+      </div>}
+      {step === "confirmed" && <div className="checkout-confirmation"><div className="checkout-confirmation__mark"><Check size={28} /></div><Eyebrow>Simulation complete</Eyebrow><h3>{plan.label} is selected locally.</h3><p>Your workspace now reflects {plan.credits.toLocaleString()} browser-demo credits. No payment was charged, no subscription exists, and no payment information was handled.</p><div className="checkout-confirmation__receipt"><span>Reference</span><b>LOCAL-{planId.toUpperCase()}-{String(plan.credits).slice(0, 3)}</b><span>Method</span><b>{methodLabel}</b></div><button className="button button--ink" onClick={() => { onClose(); onReturn(); }}>Return to workspace <ArrowRight size={16} /></button></div>}
+    </section>
+  </div>;
 }
 
 function Settings({ user, setUser, notify }: WorkspaceProps) { const [name, setName] = useState(user.name); const [emailUpdates, setEmailUpdates] = useState(false); const save = () => { if (name.trim().length < 2) { notify("Use a display name with at least two characters.", "warning"); return; } setUser({ ...user, name: name.trim() }); notify("Local workspace preferences saved.", "success"); }; return <div className="settings-layout"><section className="panel"><Eyebrow>Workspace profile</Eyebrow><h2>Who is working here?</h2><div className="settings-fields"><div className="field"><Label>Display name</Label><Input value={name} onChange={e => setName(e.target.value)} /></div><div className="field"><Label>Workspace email</Label><Input value={user.email} disabled /></div><button className="button button--coral" onClick={save}>Save local changes <Check size={16} /></button></div></section><section className="panel"><Eyebrow>Prototype behavior</Eyebrow><h2>Be explicit with integrations.</h2><div className="setting-line"><div><b>Local-only data</b><p>Current profile, plan selection, and example records use browser storage.</p></div><StatusPill tone="coral">Active</StatusPill></div><div className="setting-line"><div><b>AI generation provider</b><p>No model key or server integration is configured.</p></div><StatusPill>Not connected</StatusPill></div><div className="setting-line"><div><b>Payment processor</b><p>No checkout, payment method, or subscription record exists.</p></div><StatusPill>Not connected</StatusPill></div></section><section className="panel"><Eyebrow>Communication preference</Eyebrow><h2>Workspace notices</h2><div className="setting-line"><div><b>Example email updates</b><p>This toggle only demonstrates preference UI; no emails are sent.</p></div><Switch checked={emailUpdates} onCheckedChange={setEmailUpdates} /></div></section></div> }

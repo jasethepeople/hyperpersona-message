@@ -48,3 +48,21 @@ The Insights view rendered an illustrative bar chart and sample metrics while di
 The enhanced Plans & credits page renders four detailed tier cards, each with a stage label, local-credit allocation, recommended use case, core features, and progressive workflow/review/reporting/support detail. An at-a-glance comparison table presents six capabilities across all tiers. Hovering the Starter card applies the planned elevation and detail reveal, while the browser-local payment boundary remains visible.
 
 After the focus treatment was strengthened, programmatic focus on the Starter tier set its detail panel to an opacity of **1** and a maximum height of **230px**, confirming that the extended comparison information is available without mouse hover. Type checking and the production build both completed successfully after this change.
+
+## 2026-08-20 — Mock checkout initial check
+
+The updated Plans page renders paid-tier actions labeled **“Continue to mock checkout”** and the revised no-payment-data disclosure. The first Professional-plan click did not visibly display the dialog in the browser capture, so the next step is to inspect the live DOM and event behavior before considering the checkout flow verified.
+
+Live DOM inspection confirmed that no checkout overlay or dialog was mounted after the initial click. A first direct-action diagnostic could not execute because it mistakenly used TypeScript syntax in the browser context; the next interaction test will use plain JavaScript.
+
+The corrected direct DOM click found and triggered a paid-tier action, but no dialog mounted and no browser runtime error was emitted. The next diagnostic step is to inspect the rendered React event wiring and current source state rather than treating the flow as functional.
+
+After allowing the React update to settle, the Professional checkout dialog mounted correctly. The rendered payment-preview state displays a browser-local checkout label, an explicit no-payment-data notice, fixed test-card and invoice-preview choices, the local workspace contact, and review/cancel actions.
+
+The review step correctly displayed the selected fixed method, $800/month planning price, 10,000-credit local allocation, and explicit “Not connected” payment processing status. Simulating plan activation showed a confirmation state with a local reference, then changed the workspace to Professional with 10,000 browser-demo credits and a no-payment toast.
+
+Using **Return to workspace** closed the confirmation dialog, routed to Overview, and retained the Professional local allocation. Returning to Plans & credits also preserved that local state and left paid-tier mock-checkout actions available for non-selected plans.
+
+The Enterprise flow opened with the browser-local dialog labeled **“Prepare Enterprise.”** and rendered the Cancel action. The remaining check is cancellation: it must close the dialog while leaving the current Professional local allocation untouched.
+
+Cancelling the Enterprise checkout closed the dialog and left the plan header, card selection, sidebar allocation, and available balance at **Professional · 10,000 credits**. The mock checkout now has verified payment-preview, review, confirmation, return, and cancellation paths.
