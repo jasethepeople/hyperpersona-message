@@ -72,3 +72,21 @@ Cancelling the Enterprise checkout closed the dialog and left the plan header, c
 The paid-plan mock checkout opened normally after the expanded confirmation update, with its review action available. The next verification step is to complete the local flow and confirm the new credit, included-feature, operating-support, and local-only disclosure sections all render in the final state.
 
 The final Professional confirmation rendered the full activation ledger: activated plan, 10,000 browser-demo credits, monthly and price previews, all included features, Workflow/Review/Reporting/Support details, the fixed local reference and test method, and an explicit local-only/no-live-entitlement disclosure. The modal remains scrollable, keeping the detailed confirmation usable on the current viewport.
+
+## 2026-08-20 — Allocation-change timeline
+
+The Plans & Credits page now renders an **Allocation change record** directly beneath the current workspace allocation. The initial browser-memory baseline shows the active Professional allocation, its local 10,000-credit balance, an illustrative baseline badge, an explicit timestamp, and an adjacent disclosure that this is neither a live billing ledger nor a provider log. The next verification step exercises a direct plan update, mock checkout confirmation, and local text-draft credit usage.
+
+A direct switch from Professional to Free updated the visible workspace balance from 10,000 to **100 credits** and prepended a **Plan update** event. The event displayed the −9,900 credit delta, Free plan context, post-change balance, timestamp, and a description that clearly identifies the selection as browser-local rather than a payment action.
+
+An initial programmatic attempt to open and immediately advance the Professional checkout did not mount the dialog before its review and confirmation queries ran. The activity list correctly still contained only the baseline and direct-plan events; the checkout flow will be verified with deliberate, staged interaction rather than treating the rapid sequence as a successful event test.
+
+The staged Professional checkout opened correctly and advanced to its explicit review state. It showed the fixed test-card method, $800/month planning price, future 10,000-credit local allocation, and the not-connected payment boundary before any local confirmation was performed.
+
+Confirming the Professional mock checkout created two transparent, ordered entries: a **Mock checkout** event with no credit movement and the fixed test-card method, followed by the **Plan update** restoring the browser-local balance from 100 to 10,000 credits. The confirmation retained its existing local-only activation disclosure, and Return to workspace routed to Overview with the restored Professional allocation.
+
+The Content Studio opened with the restored Professional allocation and accepted the specific text prompt, **“Explain our campaign review checklist to trial teams who need a clear next step before launch.”** The next step submits this exact local prompt and verifies the three-credit event in the activity record.
+
+Creating the prompt-aware local text draft preserved the exact prompt in the displayed draft and reduced the Professional balance from 10,000 to **9,997 credits**. Returning to Plans & Credits showed a newest-first **Credit usage** timeline entry with a −3 credit delta, High-intent evaluators context, post-use 9,997 balance, and an explicit statement that no model provider was called. The final activity record visibly orders credit usage, checkout confirmation, and direct or confirmed plan updates.
+
+DOM verification found five timeline events with **Credit usage** as the newest entry, the checkout event present, and two plan-update events present. The timeline balances read 9,997, 10,000, 10,000, 100, and 10,000 credits in newest-first order; the rendered Plans capture confirmed the event markers, badges, deltas, descriptions, and balance summary are visually legible in the established Signal Ledger layout.

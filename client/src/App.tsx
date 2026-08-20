@@ -56,6 +56,9 @@ type ContentKind = "Text" | "Image" | "Video";
 type ToastKind = "info" | "success" | "warning";
 type Toast = { text: string; kind: ToastKind } | null;
 type CheckoutStep = "payment" | "review" | "confirmed";
+type TimelineEventType = "plan_change" | "checkout" | "credit_usage";
+type TimelineEvent = { id: string; occurredAt: number; type: TimelineEventType; title: string; description: string; planId: PlanId; creditDelta: number; creditBalance: number; baseline?: boolean };
+type TimelineEventInput = Omit<TimelineEvent, "id" | "occurredAt"> & { occurredAt?: number };
 
 const PLANS: Record<PlanId, { label: string; price: string; credits: number; description: string; features: string[] }> = {
   free: {
@@ -116,6 +119,17 @@ const PLAN_COMPARISON = [
   { label: "Implementation support", values: ["Self-guided prototype", "Rollout checklist", "Implementation session", "Priority integration planning"] },
 ] as const;
 
+function createInitialTimeline(user: WorkspaceUser): TimelineEvent[] {
+  return [{ id: `baseline-${Date.now()}`, occurredAt: Date.now() - 60_000, type: "plan_change", title: `${PLANS[user.plan].label} allocation established`, description: "Illustrative opening balance for this browser-local activity record. It is not a purchased credit grant or live billing event.", planId: user.plan, creditDelta: user.credits, creditBalance: user.credits, baseline: true }];
+}
+
+function formatTimelineTime(occurredAt: number) {
+  const elapsed = Math.max(0, Date.now() - occurredAt);
+  if (elapsed < 60_000) return "Just now";
+  if (elapsed < 3_600_000) return `${Math.floor(elapsed / 60_000)} min ago`;
+  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(occurredAt);
+}
+
 const NAV = [
   { path: "/overview", label: "Overview", icon: LayoutDashboard },
   { path: "/studio", label: "Content studio", icon: WandSparkles },
@@ -163,6 +177,7 @@ function Metric({ label, value, detail, icon: Icon }: { label: string; value: st
 function App() {
   const [location, setLocation] = useLocation();
   const [user, setUser] = useState<WorkspaceUser | null>(null);
+  const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [ready, setReady] = useState(false);
   const [toast, setToast] = useState<Toast>(null);
   const [railOpen, setRailOpen] = useState(false);
@@ -177,7 +192,7 @@ function App() {
   useEffect(() => {
     const saved = window.localStorage.getItem("hyperpersona-prototype-user");
     if (saved) {
-      try { setUser(JSON.parse(saved)); } catch { window.localStorage.removeItem("hyperpersona-prototype-user"); }
+      try { const restored = JSON.parse(saved) as WorkspaceUser; setUser(restored); setTimeline(createInitialTimeline(restored)); } catch { window.localStorage.removeItem("hyperpersona-prototype-user"); }
     }
     setReady(true);
   }, []);
@@ -193,14 +208,17 @@ function App() {
   }, [toast]);
 
   const notify = (text: string, kind: ToastKind = "info") => setToast({ text, kind });
-  const changePlan = (plan: PlanId) => {
+  const recordTimeline = (event: TimelineEventInput) => setTimeline(previous => [{ ...event, id: `activity-${Date.now()}-${Math.random().toString(16).slice(2)}`, occurredAt: event.occurredAt ?? Date.now() }, ...previous].slice(0, 40));
+  const changePlan = (plan: PlanId, source: "direct" | "checkout" = "direct") => {
     if (!user) return;
     const current = PLANS[plan];
+    const previousPlan = PLANS[user.plan];
     setUser({ ...user, plan, credits: current.credits });
+    recordTimeline({ type: "plan_change", title: `${current.label} selected locally`, description: source === "checkout" ? `The mock checkout confirmation updated the browser-local allocation from ${previousPlan.label} to ${current.label}.` : `A direct browser-local plan selection updated the allocation from ${previousPlan.label} to ${current.label}.`, planId: plan, creditDelta: current.credits - user.credits, creditBalance: current.credits });
     notify(`${current.label} is now selected locally. No payment was charged; connect billing before live use.`, "success");
   };
-  const enterWorkspace = (next: WorkspaceUser) => { setUser(next); setLocation("/overview"); };
-  const logout = () => { window.localStorage.removeItem("hyperpersona-prototype-user"); setUser(null); setLocation("/"); notify("Local workspace session cleared."); };
+  const enterWorkspace = (next: WorkspaceUser) => { setUser(next); setTimeline(createInitialTimeline(next)); setLocation("/overview"); };
+  const logout = () => { window.localStorage.removeItem("hyperpersona-prototype-user"); setUser(null); setTimeline([]); setLocation("/"); notify("Local workspace session cleared."); };
 
   if (!ready) return <div className="boot"><SignalMark /><span>Loading local workspace…</span></div>;
   if (!user && location === "/access") return <AccessPage onEnter={enterWorkspace} />;
@@ -223,6 +241,8 @@ function App() {
     setLibrary={setLibrary}
     segments={segments}
     setSegments={setSegments}
+    timeline={timeline}
+    recordTimeline={recordTimeline}
     changePlan={changePlan}
   />;
 }
@@ -272,7 +292,7 @@ function AccessPage({ onEnter }: { onEnter: (u: WorkspaceUser) => void }) {
   return <div className="access-shell"><div className="access-aside"><button className="brand" onClick={() => window.history.back()}><SignalMark small /><span>HyperPersona</span></button><div><Eyebrow>Browser-local workspace</Eyebrow><h1>Start with a clear record of what is—and is not—live.</h1><p>Registration creates a local workspace record on this device. It does not create a secure production account, charge a card, or connect to generation providers.</p></div><div className="access-checks"><span><Check /> Local profile & preferences</span><span><Check /> Plan & credit demonstration</span><span><Check /> Prompt-aware local text draft</span></div></div><main className="access-form-wrap"><div className="access-form"><div className="form-tabs"><button className={mode === "register" ? "active" : ""} onClick={() => setMode("register")}>Register</button><button className={mode === "sign-in" ? "active" : ""} onClick={() => setMode("sign-in")}>Sign in</button></div><h2>{mode === "register" ? "Create a local workspace" : "Return to local workspace"}</h2><p>{mode === "register" ? "You will begin on the Free plan with 100 demonstration credits." : "Enter any valid local credentials to continue the prototype."}</p><form onSubmit={submit}>{mode === "register" && <div className="field"><Label htmlFor="name">Display name</Label><Input id="name" value={name} onChange={e => setName(e.target.value)} placeholder="Alex Morgan" /></div>}<div className="field"><Label htmlFor="email">Work email</Label><Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="alex@company.com" /></div><div className="field"><Label htmlFor="password">Password</Label><Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="At least 6 characters" /></div>{error && <p className="form-error">{error}</p>}<Button type="submit" className="button button--coral button--full">{mode === "register" ? "Create local workspace" : "Open workspace"}<ArrowRight size={16} /></Button></form><div className="form-divider"><span>or</span></div><button className="button button--paper button--full" onClick={() => onEnter({ name: "Demo workspace", email: "demo@local", plan: "starter", credits: 1000, demo: true })}>Enter sample workspace <PlayCircle size={16} /></button><p className="form-note"><Info size={14} /> This prototype does not validate identity. Do not enter a real password.</p></div></main></div>;
 }
 
-type WorkspaceProps = { location: string; setLocation: (path: string) => void; user: WorkspaceUser; setUser: React.Dispatch<React.SetStateAction<WorkspaceUser | null>>; railOpen: boolean; setRailOpen: (open: boolean) => void; toast: Toast; notify: (text: string, kind?: ToastKind) => void; dismissToast: () => void; logout: () => void; campaigns: typeof initialCampaigns; setCampaigns: React.Dispatch<React.SetStateAction<typeof initialCampaigns>>; library: { id: number; title: string; type: ContentKind; summary: string; created: string }[]; setLibrary: React.Dispatch<React.SetStateAction<{ id: number; title: string; type: ContentKind; summary: string; created: string }[]>>; segments: { id: number; name: string; rule: string; people: number; state: string }[]; setSegments: React.Dispatch<React.SetStateAction<{ id: number; name: string; rule: string; people: number; state: string }[]>>; changePlan: (p: PlanId) => void };
+type WorkspaceProps = { location: string; setLocation: (path: string) => void; user: WorkspaceUser; setUser: React.Dispatch<React.SetStateAction<WorkspaceUser | null>>; railOpen: boolean; setRailOpen: (open: boolean) => void; toast: Toast; notify: (text: string, kind?: ToastKind) => void; dismissToast: () => void; logout: () => void; campaigns: typeof initialCampaigns; setCampaigns: React.Dispatch<React.SetStateAction<typeof initialCampaigns>>; library: { id: number; title: string; type: ContentKind; summary: string; created: string }[]; setLibrary: React.Dispatch<React.SetStateAction<{ id: number; title: string; type: ContentKind; summary: string; created: string }[]>>; segments: { id: number; name: string; rule: string; people: number; state: string }[]; setSegments: React.Dispatch<React.SetStateAction<{ id: number; name: string; rule: string; people: number; state: string }[]>>; timeline: TimelineEvent[]; recordTimeline: (event: TimelineEventInput) => void; changePlan: (p: PlanId, source?: "direct" | "checkout") => void };
 
 function Workspace(props: WorkspaceProps) {
   const page = props.location.replace("/", "") || "overview";
@@ -298,14 +318,16 @@ function Overview({ user, setLocation, campaigns, library, segments }: Workspace
   return <><section className="overview-top"><div className="welcome-card"><Eyebrow>Today’s focus</Eyebrow><h2>Make the next campaign brief specific enough to review.</h2><p>Use the studio to build a prompt with an audience, channel, and tone. In this prototype, text drafts are visibly local and provider-free.</p><button className="button button--coral" onClick={() => setLocation("/studio")}>Open content studio <ArrowRight size={16} /></button><div className="welcome-card__rule"><span>01</span><p>Define the message <b>before</b> choosing the format.</p></div></div><div className="signal-panel"><div className="signal-panel__header"><span>Workspace signal</span><StatusPill tone="green">Healthy setup</StatusPill></div><div className="signal-orbit"><div><strong>{user.credits.toLocaleString()}</strong><span>local credits</span></div></div><div className="signal-list"><span><i className="dot dot--coral" />Plan configured</span><span><i className="dot dot--blue" />{segments.length} audience segments</span><span><i className="dot dot--ink" />{campaigns.length} campaign records</span></div></div></section><section className="metric-grid"><Metric label="Credits available" value={user.credits.toLocaleString()} detail={`${plan.label} browser-demo allocation`} icon={Zap} /><Metric label="Campaign records" value={`${campaigns.length}`} detail="Local planning workspace" icon={Megaphone} /><Metric label="Saved content" value={`${library.length}`} detail="Prompt-aware local drafts" icon={BookOpen} /><Metric label="Audience segments" value={`${segments.length}`} detail="Illustrative local records" icon={UsersRound} /></section><section className="split-section"><article className="panel panel--tall"><div className="panel__heading"><div><Eyebrow>Next actions</Eyebrow><h2>Keep the workflow honest.</h2></div><button className="icon-button"><MoreHorizontal size={18} /></button></div><div className="action-list"><button onClick={() => setLocation("/studio")}><span className="action-number">01</span><span><b>Write a content brief</b><small>Use a specific prompt in local draft mode.</small></span><ArrowUpRight size={17} /></button><button onClick={() => setLocation("/audiences")}><span className="action-number">02</span><span><b>Check the audience definition</b><small>Confirm the behavioral rule before use.</small></span><ArrowUpRight size={17} /></button><button onClick={() => setLocation("/plans")}><span className="action-number">03</span><span><b>Review plan assumptions</b><small>Local plan changes never charge a card.</small></span><ArrowUpRight size={17} /></button></div></article><article className="panel panel--image"><img src="/manus-storage/hyperpersona-content-studio_b90b9bfe.png" alt="Editorial content studio tools" /><div className="panel--image__caption"><Eyebrow>Studio discipline</Eyebrow><h2>Context makes content reviewable.</h2><p>Keep prompts, channel choices, and intended audiences together in one work record.</p><button className="text-link" onClick={() => setLocation("/studio")}>Start a brief <ArrowRight size={15} /></button></div></article></section></>;
 }
 
-function Studio({ user, setUser, notify, setLibrary, setLocation }: WorkspaceProps) {
+function Studio({ user, setUser, notify, setLibrary, setLocation, recordTimeline }: WorkspaceProps) {
   const [kind, setKind] = useState<ContentKind>("Text"); const [audience, setAudience] = useState("High-intent evaluators"); const [channel, setChannel] = useState("Email"); const [tone, setTone] = useState("Measured and helpful"); const [prompt, setPrompt] = useState(""); const [draft, setDraft] = useState<{ title: string; body: string; type: ContentKind } | null>(null);
   const createDraft = () => {
     if (!prompt.trim()) { notify("Add the specific content prompt before creating a draft.", "warning"); return; }
     if (kind !== "Text") { setDraft({ title: `${kind} request recorded`, body: `Your exact request is recorded: “${prompt.trim()}”\n\nNo ${kind.toLowerCase()} provider is connected in this browser-local prototype, so no media asset is generated and no credit is charged. Connect an approved provider through a secure server-side integration before enabling live ${kind.toLowerCase()} creation.`, type: kind }); notify(`No ${kind.toLowerCase()} was generated. The request was recorded without a provider call or credit charge.`, "warning"); return; }
+    if (user.credits < 3) { notify("This browser-local allocation needs at least three demonstration credits for a text draft. Change the local plan to continue.", "warning"); return; }
     const headline = prompt.trim().replace(/[.?!]+$/, "");
     const body = `Subject: ${headline}\n\nFor ${audience}:\n\n${headline}.\n\nThis local draft preserves your exact prompt as its central message and frames it for ${channel.toLowerCase()} in a ${tone.toLowerCase()} voice. Before publishing, review the claim, add approved product details, and verify the audience context.\n\nNext step: invite the reader to review the relevant product or campaign detail.`;
-    setDraft({ title: headline, body, type: kind }); setUser({ ...user, credits: Math.max(0, user.credits - 3) }); notify("A local text draft was created using your exact prompt. Three demonstration credits were reduced locally.", "success");
+    const nextBalance = user.credits - 3;
+    setDraft({ title: headline, body, type: kind }); setUser({ ...user, credits: nextBalance }); recordTimeline({ type: "credit_usage", title: "Local text draft created", description: `Three demonstration credits were used for a prompt-aware local text draft for ${audience}. No model provider was called.`, planId: user.plan, creditDelta: -3, creditBalance: nextBalance }); notify("A local text draft was created using your exact prompt. Three demonstration credits were reduced locally.", "success");
   };
   const saveDraft = () => { if (!draft) return; setLibrary(prev => [{ id: Date.now(), title: draft.title, type: draft.type, summary: draft.body.slice(0, 126), created: "Just now" }, ...prev]); notify("Draft saved to the browser-local content library.", "success"); setLocation("/library"); };
   return <div className="studio-layout"><section className="studio-form panel"><div className="panel__heading"><div><Eyebrow>Brief builder</Eyebrow><h2>Set the parameters.</h2></div><StatusPill tone="coral">Local mode</StatusPill></div><div className="field"><Label>Content type</Label><div className="segmented">{(["Text", "Image", "Video"] as ContentKind[]).map(value => <button key={value} className={kind === value ? "selected" : ""} onClick={() => setKind(value)}>{value === "Text" ? <FilePenLine size={15} /> : value === "Image" ? <PanelsTopLeft size={15} /> : <PlayCircle size={15} />}{value}</button>)}</div></div><div className="form-row"><div className="field"><Label htmlFor="audience">Audience</Label><select id="audience" value={audience} onChange={e => setAudience(e.target.value)}><option>High-intent evaluators</option><option>Current customers</option><option>Dormant accounts</option><option>New trial teams</option></select></div><div className="field"><Label htmlFor="channel">Channel</Label><select id="channel" value={channel} onChange={e => setChannel(e.target.value)}><option>Email</option><option>LinkedIn</option><option>Landing page</option><option>In-app message</option></select></div></div><div className="field"><Label htmlFor="tone">Tone & style</Label><select id="tone" value={tone} onChange={e => setTone(e.target.value)}><option>Measured and helpful</option><option>Direct and technical</option><option>Warm and concise</option><option>Confident and practical</option></select></div><div className="field"><Label htmlFor="prompt">Content prompt <span className="required">Required</span></Label><Textarea id="prompt" value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="Write the exact message you want the draft to center. Example: Introduce our usage dashboard to trial teams who have not invited a teammate." rows={7} /><p className="field-help">This input is not ignored: text drafts reuse your exact prompt. Image and video requests are recorded only until a real provider is connected.</p></div><div className="field"><Label htmlFor="brand">Brand guidance <span>Optional</span></Label><Textarea id="brand" placeholder="Approved phrases, voice constraints, or things to avoid…" rows={3} /></div><button className="button button--coral button--full" onClick={createDraft}>{kind === "Text" ? "Create local text draft" : `Record ${kind.toLowerCase()} request`}<ArrowRight size={16} /></button><p className="form-note"><Info size={14} /> Text draft: 3 local demonstration credits. Media requests: 0 credits without a connected provider.</p></section><section className="draft-panel"><div className="draft-panel__heading"><div><Eyebrow>Output preview</Eyebrow><h2>{draft ? "Review the result." : "The prompt will appear here."}</h2></div>{draft && <div className="draft-actions"><button className="icon-button" onClick={() => navigator.clipboard?.writeText(draft.body).then(() => notify("Draft copied to clipboard.", "success"))}><Copy size={17} /></button><button className="button button--paper" onClick={saveDraft}>Save draft</button></div>}</div>{draft ? <article className={`draft-result draft-result--${draft.type.toLowerCase()}`}><div className="draft-result__meta"><StatusPill tone={draft.type === "Text" ? "green" : "coral"}>{draft.type === "Text" ? "Local text draft" : "Provider required"}</StatusPill><span>{draft.type === "Text" ? "Prompt-aware prototype" : "No generation request sent"}</span></div><h3>{draft.title}</h3><pre>{draft.body}</pre></article> : <div className="draft-empty"><WandSparkles size={29} /><h3>No draft yet.</h3><p>Complete the brief at left. The preview will state exactly whether it produced a local text draft or merely recorded a provider-required media request.</p></div>}<aside className="notice-card"><Lightbulb size={17} /><div><b>Before live generation</b><p>Connect authentication, server-side model keys, moderation, consent controls, and billing before allowing customer-facing or paid content operations.</p></div></aside></section></div>;
@@ -323,7 +345,14 @@ function Audiences({ segments, setSegments, notify }: WorkspaceProps) { const [n
 
 function Library({ library, setLocation, notify }: WorkspaceProps) { return <>{library.length === 0 ? <section className="library-empty panel"><BookOpen size={30} /><Eyebrow>Local library</Eyebrow><h2>No saved drafts yet.</h2><p>Content made in the studio can be saved here with its type and prompt-aware summary.</p><button className="button button--coral" onClick={() => setLocation("/studio")}>Open content studio <ArrowRight size={16} /></button></section> : <section className="library-grid">{library.map(item => <article className="library-card" key={item.id}><div className="library-card__top"><StatusPill tone={item.type === "Text" ? "green" : "coral"}>{item.type}</StatusPill><button className="icon-button" onClick={() => notify("This local library item can be reviewed, copied, or removed after a production storage system is connected.")}><MoreHorizontal size={18} /></button></div><h2>{item.title}</h2><p>{item.summary}…</p><footer><span>Saved {item.created}</span><ArrowUpRight size={16} /></footer></article>)}</section>}<section className="library-notice"><Database size={16} /><p><b>Storage boundary:</b> these items are kept only for the current browser-local prototype session. A production content library needs protected storage, access control, retention, and audit rules.</p></section></> }
 
-function Plans({ user, changePlan, setLocation }: WorkspaceProps) {
+function AllocationTimeline({ user, timeline }: Pick<WorkspaceProps, "user" | "timeline">) {
+  const labels: Record<TimelineEventType, string> = { plan_change: "Plan update", checkout: "Mock checkout", credit_usage: "Credit usage" };
+  const tones: Record<TimelineEventType, "coral" | "blue" | "green"> = { plan_change: "coral", checkout: "blue", credit_usage: "green" };
+  const icons: Record<TimelineEventType, React.ElementType> = { plan_change: CreditCard, checkout: ShieldCheck, credit_usage: Zap };
+  return <section className="allocation-timeline panel" aria-labelledby="allocation-timeline-title"><header className="allocation-timeline__header"><div><Eyebrow>Allocation change record</Eyebrow><h2 id="allocation-timeline-title">Every local movement, in context.</h2><p>Plan changes, mock checkout confirmations, and credited text drafts appear here while this browser session is open.</p></div><div className="allocation-timeline__balance"><span>Current local balance</span><strong>{user.credits.toLocaleString()}</strong><small>{PLANS[user.plan].label} allocation</small></div></header><div className="allocation-timeline__boundary"><Info size={16} /><p><b>Prototype activity only.</b> Times use this device and entries are held in browser memory for the active session. They are not invoices, provider logs, or a live billing ledger.</p></div><ol className="timeline-events">{timeline.map(event => { const Icon = icons[event.type]; const delta = event.creditDelta === 0 ? "No credit movement" : `${event.creditDelta > 0 ? "+" : "−"}${Math.abs(event.creditDelta).toLocaleString()} credits`; return <li className={`timeline-event timeline-event--${event.type}`} key={event.id}><div className="timeline-event__marker"><Icon size={15} /></div><article><div className="timeline-event__top"><div><StatusPill tone={event.baseline ? "blue" : tones[event.type]}>{event.baseline ? "Illustrative baseline" : labels[event.type]}</StatusPill><span>{formatTimelineTime(event.occurredAt)}</span></div><strong>{delta}</strong></div><h3>{event.title}</h3><p>{event.description}</p><footer><span>{PLANS[event.planId].label} context</span><b>Balance after: {event.creditBalance.toLocaleString()} credits</b></footer></article></li>; })}</ol></section>;
+}
+
+function Plans({ user, changePlan, setLocation, timeline, recordTimeline }: WorkspaceProps) {
   const [checkoutPlan, setCheckoutPlan] = useState<PlanId | null>(null);
   const choosePlan = (id: PlanId) => {
     if (id === "free") { changePlan(id); return; }
@@ -334,6 +363,7 @@ function Plans({ user, changePlan, setLocation }: WorkspaceProps) {
       <div><Eyebrow>Current workspace allocation</Eyebrow><h2>{PLANS[user.plan].label} <span>·</span> {user.credits.toLocaleString()} credits</h2><p>Changing a plan here updates only this browser-local demonstration. It never opens a checkout, charges a card, or commits a subscription.</p></div>
       <div className="billing-hero__icon"><CreditCard size={29} /></div>
     </section>
+    <AllocationTimeline user={user} timeline={timeline} />
     <section className="plan-intro">
       <div><Eyebrow>Tier comparison</Eyebrow><h2>Choose the operating depth, not just the credit count.</h2></div>
       <p>Hover or focus a tier to bring its operating model forward. Every value below describes prototype planning scope; no provider, payment, or entitlement is activated by selection.</p>
@@ -369,17 +399,17 @@ function Plans({ user, changePlan, setLocation }: WorkspaceProps) {
       </div>
     </section>
     <section className="payment-boundary panel"><div><ShieldCheck size={21} /><div><Eyebrow>Payment boundary</Eyebrow><h2>Billing is not configured.</h2><p>The checkout preview uses only fixed demonstration information. It does not request, validate, retain, or transmit card data; plan activation updates this browser-local workspace only.</p></div></div><button className="button button--ink" onClick={() => setCheckoutPlan("professional")}>Preview mock checkout <ArrowRight size={16} /></button></section>
-    {checkoutPlan && <MockCheckout planId={checkoutPlan} user={user} onClose={() => setCheckoutPlan(null)} onComplete={() => changePlan(checkoutPlan)} onReturn={() => setLocation("/overview")} />}
+    {checkoutPlan && <MockCheckout planId={checkoutPlan} user={user} onClose={() => setCheckoutPlan(null)} onComplete={(method) => { recordTimeline({ type: "checkout", title: "Mock checkout confirmation recorded", description: `The ${PLANS[checkoutPlan].label} test checkout was confirmed with ${method}. No payment data was collected or transmitted.`, planId: checkoutPlan, creditDelta: 0, creditBalance: PLANS[checkoutPlan].credits }); changePlan(checkoutPlan, "checkout"); }} onReturn={() => setLocation("/overview")} />}
   </>;
 }
 
-function MockCheckout({ planId, user, onClose, onComplete, onReturn }: { planId: PlanId; user: WorkspaceUser; onClose: () => void; onComplete: () => void; onReturn: () => void }) {
+function MockCheckout({ planId, user, onClose, onComplete, onReturn }: { planId: PlanId; user: WorkspaceUser; onClose: () => void; onComplete: (method: string) => void; onReturn: () => void }) {
   const [step, setStep] = useState<CheckoutStep>("payment");
   const [method, setMethod] = useState<"card" | "invoice">("card");
   const plan = PLANS[planId];
   const planDetail = PLAN_DETAILS[planId];
   const methodLabel = method === "card" ? "Test card •••• 4242" : "Invoice preview";
-  const activate = () => { onComplete(); setStep("confirmed"); };
+  const activate = () => { onComplete(methodLabel); setStep("confirmed"); };
   return <div className="checkout-overlay" role="presentation">
     <section className="checkout-dialog" role="dialog" aria-modal="true" aria-labelledby="checkout-title">
       <header className="checkout-dialog__header">
