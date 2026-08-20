@@ -75,6 +75,46 @@ const PLANS: Record<PlanId, { label: string; price: string; credits: number; des
   },
 };
 
+const PLAN_DETAILS: Record<PlanId, { bestFor: string; workflow: string; review: string; reporting: string; onboarding: string }> = {
+  free: {
+    bestFor: "Individuals mapping a responsible content workflow.",
+    workflow: "Core local workspace with 3 campaign records.",
+    review: "Single-workspace review notes.",
+    reporting: "Illustrative workspace signals.",
+    onboarding: "Self-guided local prototype.",
+  },
+  starter: {
+    bestFor: "Small teams preparing a provider-connected operating model.",
+    workflow: "Campaign templates and local audience records.",
+    review: "Shared-ready review checkpoints.",
+    reporting: "Standard illustrative reporting views.",
+    onboarding: "Guided rollout checklist.",
+  },
+  professional: {
+    bestFor: "Marketing operations teams requiring structured governance.",
+    workflow: "Advanced campaign and content operating patterns.",
+    review: "Approval controls and release readiness.",
+    reporting: "Advanced measurement design readiness.",
+    onboarding: "Implementation planning session.",
+  },
+  enterprise: {
+    bestFor: "Multi-team organizations planning custom integrations.",
+    workflow: "Governed multi-workspace operating model.",
+    review: "Custom governance and audit planning.",
+    reporting: "Custom data-contract planning.",
+    onboarding: "Priority rollout and integration planning.",
+  },
+};
+
+const PLAN_COMPARISON = [
+  { label: "Browser-demo credit allocation", values: ["100", "1,000", "10,000", "50,000"] },
+  { label: "Campaign planning", values: ["3 local records", "Templates + local records", "Advanced operating patterns", "Governed multi-workspace model"] },
+  { label: "Audience workflow", values: ["Core local segments", "Segment planning", "Approval-ready definitions", "Custom governance planning"] },
+  { label: "Content review", values: ["Single-workspace review", "Shared-ready checkpoints", "Structured approvals", "Custom review policy"] },
+  { label: "Reporting mode", values: ["Illustrative signals", "Standard illustrations", "Advanced measurement design", "Custom data-contract plan"] },
+  { label: "Implementation support", values: ["Self-guided prototype", "Rollout checklist", "Implementation session", "Priority integration planning"] },
+] as const;
+
 const NAV = [
   { path: "/overview", label: "Overview", icon: LayoutDashboard },
   { path: "/studio", label: "Content studio", icon: WandSparkles },
@@ -282,7 +322,49 @@ function Audiences({ segments, setSegments, notify }: WorkspaceProps) { const [n
 
 function Library({ library, setLocation, notify }: WorkspaceProps) { return <>{library.length === 0 ? <section className="library-empty panel"><BookOpen size={30} /><Eyebrow>Local library</Eyebrow><h2>No saved drafts yet.</h2><p>Content made in the studio can be saved here with its type and prompt-aware summary.</p><button className="button button--coral" onClick={() => setLocation("/studio")}>Open content studio <ArrowRight size={16} /></button></section> : <section className="library-grid">{library.map(item => <article className="library-card" key={item.id}><div className="library-card__top"><StatusPill tone={item.type === "Text" ? "green" : "coral"}>{item.type}</StatusPill><button className="icon-button" onClick={() => notify("This local library item can be reviewed, copied, or removed after a production storage system is connected.")}><MoreHorizontal size={18} /></button></div><h2>{item.title}</h2><p>{item.summary}…</p><footer><span>Saved {item.created}</span><ArrowUpRight size={16} /></footer></article>)}</section>}<section className="library-notice"><Database size={16} /><p><b>Storage boundary:</b> these items are kept only for the current browser-local prototype session. A production content library needs protected storage, access control, retention, and audit rules.</p></section></> }
 
-function Plans({ user, changePlan }: WorkspaceProps) { return <><section className="billing-hero"><div><Eyebrow>Current workspace allocation</Eyebrow><h2>{PLANS[user.plan].label} <span>·</span> {user.credits.toLocaleString()} credits</h2><p>Changing a plan here updates only this browser-local demonstration. It never opens a checkout, charges a card, or commits a subscription.</p></div><div className="billing-hero__icon"><CreditCard size={29} /></div></section><section className="plan-grid plan-grid--app">{(Object.entries(PLANS) as [PlanId, typeof PLANS[PlanId]][]).map(([id, plan]) => <article className={`plan-card ${user.plan === id ? "plan-card--selected" : ""}`} key={id}>{user.plan === id && <span className="plan-flag">Selected locally</span>}<Eyebrow>{plan.label}</Eyebrow><h3>{plan.price}<small>/mo</small></h3><p>{plan.description}</p><ul>{plan.features.map(f => <li key={f}><Check size={15} />{f}</li>)}</ul><button className={user.plan === id ? "button button--quiet button--full" : "button button--paper button--full"} disabled={user.plan === id} onClick={() => changePlan(id)}>{user.plan === id ? "Current local plan" : `Select ${plan.label}`}<ArrowRight size={15} /></button></article>)}</section><section className="payment-boundary panel"><div><ShieldCheck size={21} /><div><Eyebrow>Payment boundary</Eyebrow><h2>Billing is not configured.</h2><p>There is no connected payment processor in this front-end prototype. Do not treat plan selections, credit totals, or invoices as commercial records.</p></div></div><button className="button button--ink" onClick={() => window.alert("A production implementation should open a secure hosted checkout after a Stripe or other payment provider is configured server-side.")}>What production needs <ArrowRight size={16} /></button></section></> }
+function Plans({ user, changePlan }: WorkspaceProps) {
+  return <>
+    <section className="billing-hero">
+      <div><Eyebrow>Current workspace allocation</Eyebrow><h2>{PLANS[user.plan].label} <span>·</span> {user.credits.toLocaleString()} credits</h2><p>Changing a plan here updates only this browser-local demonstration. It never opens a checkout, charges a card, or commits a subscription.</p></div>
+      <div className="billing-hero__icon"><CreditCard size={29} /></div>
+    </section>
+    <section className="plan-intro">
+      <div><Eyebrow>Tier comparison</Eyebrow><h2>Choose the operating depth, not just the credit count.</h2></div>
+      <p>Hover or focus a tier to bring its operating model forward. Every value below describes prototype planning scope; no provider, payment, or entitlement is activated by selection.</p>
+    </section>
+    <section className="plan-grid plan-grid--app plan-grid--detailed">
+      {(Object.entries(PLANS) as [PlanId, typeof PLANS[PlanId]][]).map(([id, plan]) => {
+        const detail = PLAN_DETAILS[id];
+        const isSelected = user.plan === id;
+        return <article className={`plan-card plan-card--interactive ${isSelected ? "plan-card--selected" : ""} ${id === "professional" ? "plan-card--recommended" : ""}`} key={id} tabIndex={0}>
+          {isSelected && <span className="plan-flag">Selected locally</span>}
+          {!isSelected && id === "professional" && <span className="plan-flag">Recommended for governance</span>}
+          <div className="plan-card__heading"><Eyebrow>{plan.label}</Eyebrow><span className="plan-card__tier">{id === "free" ? "Explore" : id === "starter" ? "Prepare" : id === "professional" ? "Operate" : "Scale"}</span></div>
+          <h3>{plan.price}<small>/mo</small></h3>
+          <p className="plan-card__description">{plan.description}</p>
+          <div className="plan-card__credit"><Zap size={15} /><span><b>{plan.credits.toLocaleString()}</b> browser-demo credits</span></div>
+          <div className="plan-card__detail"><span>Best for</span><p>{detail.bestFor}</p></div>
+          <ul>{plan.features.map(f => <li key={f}><Check size={15} />{f}</li>)}</ul>
+          <div className="plan-card__reveal" aria-label={`${plan.label} additional feature details`}>
+            <div><span>Workflow</span><b>{detail.workflow}</b></div>
+            <div><span>Review</span><b>{detail.review}</b></div>
+            <div><span>Reporting</span><b>{detail.reporting}</b></div>
+            <div><span>Support</span><b>{detail.onboarding}</b></div>
+          </div>
+          <button className={isSelected ? "button button--quiet button--full" : id === "professional" ? "button button--coral button--full" : "button button--paper button--full"} disabled={isSelected} onClick={() => changePlan(id)}>{isSelected ? "Current local plan" : `Select ${plan.label}`}<ArrowRight size={15} /></button>
+        </article>;
+      })}
+    </section>
+    <section className="comparison-panel panel">
+      <div className="comparison-panel__heading"><div><Eyebrow>At-a-glance comparison</Eyebrow><h2>What changes across the tiers.</h2></div><p>These rows are transparent planning descriptions for this browser-local prototype, not a live service-level agreement.</p></div>
+      <div className="comparison-table" role="region" aria-label="Plan feature comparison" tabIndex={0}>
+        <div className="comparison-table__head"><span>Capability</span>{(Object.keys(PLANS) as PlanId[]).map(id => <span key={id}>{PLANS[id].label}</span>)}</div>
+        {PLAN_COMPARISON.map(row => <div className="comparison-table__row" key={row.label}><span>{row.label}</span>{row.values.map((value, index) => <span key={`${row.label}-${index}`}><Check size={13} />{value}</span>)}</div>)}
+      </div>
+    </section>
+    <section className="payment-boundary panel"><div><ShieldCheck size={21} /><div><Eyebrow>Payment boundary</Eyebrow><h2>Billing is not configured.</h2><p>There is no connected payment processor in this front-end prototype. Do not treat plan selections, credit totals, or invoices as commercial records.</p></div></div><button className="button button--ink" onClick={() => window.alert("A production implementation should open a secure hosted checkout after a Stripe or other payment provider is configured server-side.")}>What production needs <ArrowRight size={16} /></button></section>
+  </>;
+}
 
 function Settings({ user, setUser, notify }: WorkspaceProps) { const [name, setName] = useState(user.name); const [emailUpdates, setEmailUpdates] = useState(false); const save = () => { if (name.trim().length < 2) { notify("Use a display name with at least two characters.", "warning"); return; } setUser({ ...user, name: name.trim() }); notify("Local workspace preferences saved.", "success"); }; return <div className="settings-layout"><section className="panel"><Eyebrow>Workspace profile</Eyebrow><h2>Who is working here?</h2><div className="settings-fields"><div className="field"><Label>Display name</Label><Input value={name} onChange={e => setName(e.target.value)} /></div><div className="field"><Label>Workspace email</Label><Input value={user.email} disabled /></div><button className="button button--coral" onClick={save}>Save local changes <Check size={16} /></button></div></section><section className="panel"><Eyebrow>Prototype behavior</Eyebrow><h2>Be explicit with integrations.</h2><div className="setting-line"><div><b>Local-only data</b><p>Current profile, plan selection, and example records use browser storage.</p></div><StatusPill tone="coral">Active</StatusPill></div><div className="setting-line"><div><b>AI generation provider</b><p>No model key or server integration is configured.</p></div><StatusPill>Not connected</StatusPill></div><div className="setting-line"><div><b>Payment processor</b><p>No checkout, payment method, or subscription record exists.</p></div><StatusPill>Not connected</StatusPill></div></section><section className="panel"><Eyebrow>Communication preference</Eyebrow><h2>Workspace notices</h2><div className="setting-line"><div><b>Example email updates</b><p>This toggle only demonstrates preference UI; no emails are sent.</p></div><Switch checked={emailUpdates} onCheckedChange={setEmailUpdates} /></div></section></div> }
 

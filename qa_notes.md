@@ -42,3 +42,9 @@ The Insights view rendered an illustrative bar chart and sample metrics while di
 ## 2026-08-20 — Final verification
 
 `pnpm check` completed with no TypeScript errors, and `pnpm build` completed successfully. The production build reported only a non-blocking client-bundle-size recommendation. The browser console did not show a runtime application error during workflow testing. Reloading `/settings` retained the local Jordan Reed workspace profile, Starter selection, and 997 local-credit balance, confirming the intended browser-local persistence behavior.
+
+## 2026-08-20 — Plans and credits enhancement
+
+The enhanced Plans & credits page renders four detailed tier cards, each with a stage label, local-credit allocation, recommended use case, core features, and progressive workflow/review/reporting/support detail. An at-a-glance comparison table presents six capabilities across all tiers. Hovering the Starter card applies the planned elevation and detail reveal, while the browser-local payment boundary remains visible.
+
+After the focus treatment was strengthened, programmatic focus on the Starter tier set its detail panel to an opacity of **1** and a maximum height of **230px**, confirming that the extended comparison information is available without mouse hover. Type checking and the production build both completed successfully after this change.
